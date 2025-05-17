@@ -9,29 +9,42 @@ const MediaLibrary = ({ media, onAddToTimeline, onFileUpload }) => {
   const fileInputRef = useRef(null);
   
   // Handle file drop with react-dropzone
-  const onDrop = useCallback((acceptedFiles) => {
+  const onDrop = useCallback(async (acceptedFiles) => {
     if (acceptedFiles && acceptedFiles.length > 0) {
       setUploading(true);
       console.log("Files received:", acceptedFiles);
-      onFileUpload(acceptedFiles);
-      setUploading(false);
+      try {
+        await onFileUpload(acceptedFiles);
+      } catch (error) {
+        console.error("Error uploading files:", error);
+      } finally {
+        setUploading(false);
+      }
     }
     setDragActive(false);
   }, [onFileUpload]);
   
   // Handle manual file selection
-  const handleFileSelect = (e) => {
+  const handleFileSelect = async (e) => {
     const files = Array.from(e.target.files);
     if (files.length > 0) {
       setUploading(true);
       console.log("Files selected manually:", files);
-      onFileUpload(files);
-      setUploading(false);
+      try {
+        await onFileUpload(files);
+      } catch (error) {
+        console.error("Error uploading files:", error);
+      } finally {
+        setUploading(false);
+      }
     }
+    // Reset the input value to allow uploading the same file again
+    e.target.value = null;
   };
   
   // Handle manual file input click
-  const handleBrowseClick = () => {
+  const handleBrowseClick = (e) => {
+    e.stopPropagation(); // Prevent triggering the dropzone
     fileInputRef.current.click();
   };
   
@@ -43,7 +56,8 @@ const MediaLibrary = ({ media, onAddToTimeline, onFileUpload }) => {
       'image/*': []
     },
     noClick: true, // Disable click handling by dropzone to use our own
-    noKeyboard: true
+    noKeyboard: true,
+    disabled: uploading // Disable while uploading
   });
   
   // Effect when drag is active
@@ -60,7 +74,7 @@ const MediaLibrary = ({ media, onAddToTimeline, onFileUpload }) => {
         {...getRootProps()} 
         className={`upload-area mb-6 ${dragActive ? 'bg-editor-primary bg-opacity-10 border-editor-primary' : ''} ${uploading ? 'opacity-50 cursor-wait' : ''}`}
       >
-        <input {...getInputProps()} />
+        <input {...getInputProps()} disabled={uploading} />
         
         {/* Hidden file input for manual selection */}
         <input 
@@ -70,6 +84,7 @@ const MediaLibrary = ({ media, onAddToTimeline, onFileUpload }) => {
           accept="video/*,audio/*,image/*"
           multiple
           onChange={handleFileSelect}
+          disabled={uploading}
         />
         
         {uploading ? (
@@ -86,6 +101,7 @@ const MediaLibrary = ({ media, onAddToTimeline, onFileUpload }) => {
             <button 
               onClick={handleBrowseClick} 
               className="text-xs text-editor-primary hover:underline mt-1 focus:outline-none"
+              disabled={uploading}
             >
               or click to browse
             </button>
