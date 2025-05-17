@@ -87,12 +87,30 @@ const VideoEditor = () => {
   // Save media library to localStorage whenever it changes
   useEffect(() => {
     try {
-      // Create a serializable version of the media (remove File objects)
+      // Create a serializable version of the media (remove non-serializable properties)
       const serializableMedia = mediaLibrary.map(item => {
-        const { file, ...rest } = item;
-        return rest;
+        // Extract just the serializable properties
+        const { 
+          id, type, name, duration, 
+          // For sample media with direct URLs, keep the src as is
+          // For uploaded media with blob URLs, we can't save these between sessions
+          // so we'll exclude them and rely on re-uploading
+          fileType, fileSize, lastModified 
+        } = item;
+        
+        // For sample media, keep the src and thumbnail (they're stable URLs)
+        // For uploaded media with object URLs, don't try to save them
+        const isSampleMedia = item.id.startsWith('sample-');
+        
+        return {
+          id, type, name, duration,
+          ...(isSampleMedia ? { src: item.src, thumbnail: item.thumbnail } : {}),
+          ...(fileType ? { fileType, fileSize, lastModified } : {})
+        };
       });
+      
       localStorage.setItem('videoEditor_mediaLibrary', JSON.stringify(serializableMedia));
+      console.log('Media library saved to localStorage:', serializableMedia.length, 'items');
     } catch (error) {
       console.error('Error saving media library to localStorage:', error);
     }
