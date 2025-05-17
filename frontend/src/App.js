@@ -305,62 +305,140 @@ const VideoEditor = () => {
     if (!files || files.length === 0) return;
     
     try {
-      const newMedia = await Promise.all(
+      // Create a copy of the current media library to add new items
+      const newMediaLibrary = [...mediaLibrary];
+      
+      // Process each file
+      await Promise.all(
         Array.from(files).map(async (file, index) => {
           console.log("Processing file:", file.name, file.type);
-          const id = `upload-${Date.now()}-${index}`;
-          const type = file.type.startsWith('video') ? 'video' : 
-                      file.type.startsWith('audio') ? 'audio' : 'image';
           
-          // Create object URLs for preview
-          const fileUrl = URL.createObjectURL(file);
-          
-          // For videos, generate duration (simplified for this example)
-          let duration = 30; // Default duration
-          if (type === 'video' || type === 'audio') {
-            try {
-              duration = await getMediaDuration(file, type);
-            } catch (err) {
-              console.error("Error getting duration:", err);
-            }
+          // Validate file type
+          if (!file.type.startsWith('video/') && !file.type.startsWith('audio/') && !file.type.startsWith('image/')) {
+            console.warn(`Skipping file ${file.name}: unsupported type ${file.type}`);
+            return;
           }
           
-          return {
-            id,
-            type,
-            name: file.name,
-            duration,
-            src: fileUrl,
-            thumbnail: type === 'video' ? fileUrl : null,
-            file // Store the original file for processing
-          };
+          const id = `upload-${Date.now()}-${index}`;
+          const type = file.type.startsWith('video') ? 'video' : 
+                     file.type.startsWith('audio') ? 'audio' : 'image';
+          
+          try {
+            // Create a new Blob to ensure proper handling
+            const fileBlob = new Blob([await file.arrayBuffer()], { type: file.type });
+            const fileUrl = URL.createObjectURL(fileBlob);
+            
+            // Get file metadata
+            let duration = 30; // Default duration
+            if (type === 'video' || type === 'audio') {
+              try {
+                console.log(`Getting duration for ${file.name}...`);
+                duration = await getMediaDuration(fileBlob, type);
+                console.log(`Duration for ${file.name}: ${duration} seconds`);
+              } catch (err) {
+                console.error(`Error getting duration for ${file.name}:`, err);
+              }
+            }
+            
+            // Create the media item
+            const mediaItem = {
+              id,
+              type,
+              name: file.name,
+              duration,
+              src: fileUrl,
+              thumbnail: type === 'video' ? fileUrl : null,
+              fileType: file.type,
+              fileSize: file.size,
+              lastModified: file.lastModified
+            };
+            
+            // Add to media library
+            newMediaLibrary.push(mediaItem);
+            console.log(`Added ${file.name} to media library`);
+          } catch (error) {
+            console.error(`Error processing file ${file.name}:`, error);
+          }
         })
       );
       
-      console.log("Adding new media items:", newMedia.length);
-      setMediaLibrary(prev => [...prev, ...newMedia]);
+      // Update the media library state
+      setMediaLibrary(newMediaLibrary);
+      console.log("Media library updated with new items");
     } catch (error) {
       console.error("Error processing uploaded files:", error);
     }
   };
   
   // Helper function to get media duration
-  const getMediaDuration = (file, type) => {
+  const getMediaDuration = (fileOrBlob, type) => {
     return new Promise((resolve, reject) => {
+      // Create the appropriate element based on media type
       const element = type === 'video' ? document.createElement('video') : document.createElement('audio');
-      element.preload = 'metadata';
       
+      // Configure element
+      element.preload = 'metadata';
+      element.muted = true; // Important for video autoplay in some browsers
+      element.playsInline = true;
+      element.crossOrigin = "anonymous";
+      
+      // Set up event handlers
       element.onloadedmetadata = () => {
+        // Make sure we have valid duration
+        if (isNaN(element.duration) || element.duration === Infinity) {
+          element.currentTime = 1e101; // Force duration calculation
+          return;
+        }
+        
+        const duration = element.duration;
         URL.revokeObjectURL(element.src);
-        resolve(element.duration);
+        resolve(duration);
+      };
+      
+      element.ondurationchange = () => {
+        // Sometimes duration is available in this event instead
+        if (isNaN(element.duration) || element.duration === Infinity) {
+          return;
+        }
+        
+        const duration = element.duration;
+        URL.revokeObjectURL(element.src);
+        resolve(duration);
       };
       
       element.onerror = () => {
         URL.revokeObjectURL(element.src);
-        reject(new Error("Error loading media metadata"));
+        reject(new Error(`Error loading media metadata: ${element.error?.message || 'Unknown error'}`));
       };
       
-      element.src = URL.createObjectURL(file);
+      // Load the file
+      if (fileOrBlob instanceof Blob) {
+        element.src = URL.createObjectURL(fileOrBlob);
+      } else {
+        element.src = URL.createObjectURL(fileOrBlob);
+      }
+      
+      // Some browsers need to actually start playing to get duration
+      const playPromise = element.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            // Playback started - now we can pause
+            element.pause();
+          })
+          .catch(error => {
+            // Auto-play was prevented
+            console.warn("Autoplay prevented, trying to get duration without playing", error);
+          });
+      }
+      
+      // Set a timeout in case metadata loading takes too long
+      setTimeout(() => {
+        if (!element.duration || element.duration === Infinity) {
+          URL.revokeObjectURL(element.src);
+          resolve(30); // Default duration if we can't get it
+        }
+      }, 5000);
     });
   };
 
