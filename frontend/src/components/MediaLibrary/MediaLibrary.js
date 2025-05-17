@@ -108,16 +108,17 @@ const MediaLibrary = ({ media, onAddToTimeline, onFileUpload }) => {
         />
         
         {uploading ? (
-          <div className="py-4">
+          <div className="py-6">
             <div className="loading-spinner mx-auto"></div>
-            <p className="text-sm font-medium mt-2">Uploading...</p>
+            <p className="text-sm font-medium mt-3 text-center">Uploading and processing videos...</p>
+            <p className="text-xs text-editor-text-muted mt-1 text-center">This may take a moment for large files</p>
           </div>
         ) : (
           <>
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-8 h-8 mx-auto mb-2 text-editor-text-muted">
               <path fillRule="evenodd" d="M11.47 2.47a.75.75 0 0 1 1.06 0l4.5 4.5a.75.75 0 0 1-1.06 1.06l-3.22-3.22V16.5a.75.75 0 0 1-1.5 0V4.81L8.03 8.03a.75.75 0 0 1-1.06-1.06l4.5-4.5ZM3 15.75a.75.75 0 0 1 .75-.75h16.5a.75.75 0 0 1 0 1.5H3.75a.75.75 0 0 1-.75-.75Z" clipRule="evenodd" />
             </svg>
-            <p className="text-sm font-medium">Drag & drop files here</p>
+            <p className="text-sm font-medium">Drag & drop video files here</p>
             <button 
               onClick={handleBrowseClick} 
               className="text-xs text-editor-primary hover:underline mt-1 focus:outline-none"
