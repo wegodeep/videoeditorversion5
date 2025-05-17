@@ -12,7 +12,17 @@ const MediaLibrary = ({ media, onAddToTimeline, onFileUpload }) => {
   const onDrop = useCallback(async (acceptedFiles) => {
     if (acceptedFiles && acceptedFiles.length > 0) {
       setUploading(true);
-      console.log("Files received:", acceptedFiles);
+      console.log("Files received:", acceptedFiles.length, "files");
+
+      // Check if we have large video files (>10MB)
+      const hasLargeFiles = acceptedFiles.some(file => 
+        file.type.startsWith('video/') && file.size > 10 * 1024 * 1024
+      );
+
+      if (hasLargeFiles) {
+        console.log("Large video files detected, processing may take a while");
+      }
+      
       try {
         await onFileUpload(acceptedFiles);
       } catch (error) {
