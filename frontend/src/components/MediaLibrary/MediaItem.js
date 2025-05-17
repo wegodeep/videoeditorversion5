@@ -1,8 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 
 const MediaItem = ({ item, onAddToTimeline }) => {
   const [isAdding, setIsAdding] = useState(false);
+  const [thumbnailError, setThumbnailError] = useState(false);
+  const [thumbnailLoaded, setThumbnailLoaded] = useState(false);
+  const videoRef = useRef(null);
   
   // Format duration as MM:SS
   const formatDuration = (seconds) => {
@@ -11,20 +14,55 @@ const MediaItem = ({ item, onAddToTimeline }) => {
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
   
+  // Generate a video thumbnail on hover for video items
+  useEffect(() => {
+    if (item.type === 'video' && videoRef.current) {
+      const video = videoRef.current;
+      
+      const handleMouseEnter = () => {
+        if (!video.paused) return;
+        video.currentTime = 0;
+        video.play().catch(err => console.error("Error playing video thumbnail:", err));
+      };
+      
+      const handleMouseLeave = () => {
+        if (video.paused) return;
+        video.pause();
+        video.currentTime = 0;
+      };
+      
+      video.addEventListener('mouseenter', handleMouseEnter);
+      video.addEventListener('mouseleave', handleMouseLeave);
+      
+      return () => {
+        video.removeEventListener('mouseenter', handleMouseEnter);
+        video.removeEventListener('mouseleave', handleMouseLeave);
+      };
+    }
+  }, [item.type, thumbnailLoaded]);
+  
   // Render appropriate thumbnail based on media type
   const renderThumbnail = () => {
-    if (item.type === 'video' && item.thumbnail) {
+    if (item.type === 'video' && item.src && !thumbnailError) {
       return (
         <div className="relative">
           <div className="media-thumbnail object-cover w-full h-16 flex items-center justify-center bg-gray-900">
-            <img 
-              src={item.thumbnail} 
-              alt={item.name} 
+            {!thumbnailLoaded && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 z-10">
+                <div className="w-6 h-6 border-2 border-t-transparent border-white rounded-full animate-spin"></div>
+              </div>
+            )}
+            
+            <video 
+              ref={videoRef}
+              src={item.src} 
               className="max-h-full max-w-full object-contain"
-              onError={(e) => {
-                e.target.onerror = null;
-                e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm.5 3.5v10h15v-10h-15zM10 10a.5.5 0 0 0-.5.5v3a.5.5 0 0 0 .5.5h4a.5.5 0 0 0 .5-.5v-3a.5.5 0 0 0-.5-.5h-4z'/%3E%3C/svg%3E";
-              }}
+              muted
+              playsInline
+              loop
+              preload="metadata"
+              onError={() => setThumbnailError(true)}
+              onLoadedData={() => setThumbnailLoaded(true)}
             />
           </div>
           <div className="absolute bottom-1 right-1 bg-black bg-opacity-70 text-white text-xs px-1 rounded">
@@ -42,6 +80,15 @@ const MediaItem = ({ item, onAddToTimeline }) => {
           <div className="absolute bottom-1 right-1 bg-black bg-opacity-70 text-white text-xs px-1 rounded">
             {formatDuration(item.duration)}
           </div>
+        </div>
+      );
+    } else if (thumbnailError || (item.type === 'video' && !item.src)) {
+      // Fallback for video with errors
+      return (
+        <div className="bg-editor-clip-video h-16 flex items-center justify-center">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-8 h-8 text-white opacity-70">
+            <path fillRule="evenodd" d="M4.5 5.653c0-1.427 1.529-2.33 2.779-1.643l11.54 6.347c1.295.712 1.295 2.573 0 3.286L7.28 19.99c-1.25.687-2.779-.217-2.779-1.643V5.653Z" clipRule="evenodd" />
+          </svg>
         </div>
       );
     } else {
@@ -82,7 +129,7 @@ const MediaItem = ({ item, onAddToTimeline }) => {
         {renderThumbnail()}
         
         {/* Play overlay for video preview */}
-        {item.type === 'video' && (
+        {item.type === 'video' && !thumbnailError && (
           <motion.div 
             className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity"
             whileHover={{ opacity: 1 }}
@@ -95,6 +142,13 @@ const MediaItem = ({ item, onAddToTimeline }) => {
                 e.stopPropagation();
                 // Preview video - this would be implemented with a modal
                 console.log("Preview video:", item);
+                if (videoRef.current) {
+                  if (videoRef.current.paused) {
+                    videoRef.current.play().catch(err => console.error("Error playing video:", err));
+                  } else {
+                    videoRef.current.pause();
+                  }
+                }
               }}
             >
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
@@ -110,7 +164,9 @@ const MediaItem = ({ item, onAddToTimeline }) => {
         <div className="flex justify-between items-start">
           <div className="overflow-hidden">
             <h4 className="text-sm font-medium truncate max-w-[140px]">{item.name}</h4>
-            <p className="text-xs text-editor-text-muted mt-0.5 capitalize">{item.type}</p>
+            <p className="text-xs text-editor-text-muted mt-0.5 capitalize">
+              {item.type} {item.file ? `(${(item.file.size / (1024 * 1024)).toFixed(1)} MB)` : ''}
+            </p>
           </div>
           
           <motion.button
