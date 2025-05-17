@@ -300,37 +300,68 @@ const VideoEditor = () => {
   };
 
   // Handle file upload
-  const handleFileUpload = (files) => {
+  const handleFileUpload = async (files) => {
     console.log("Handling file upload:", files);
     if (!files || files.length === 0) return;
     
     try {
-      const newMedia = Array.from(files).map((file, index) => {
-        console.log("Processing file:", file.name, file.type);
-        const id = `upload-${Date.now()}-${index}`;
-        const type = file.type.startsWith('video') ? 'video' : 
-                     file.type.startsWith('audio') ? 'audio' : 'image';
-        
-        // Create object URLs for preview
-        const fileUrl = URL.createObjectURL(file);
-        
-        return {
-          id,
-          type,
-          name: file.name,
-          duration: 30, // This would normally be extracted from the file metadata
-          src: fileUrl,
-          thumbnail: type === 'video' ? fileUrl : null,
-          // Store the original file for processing
-          file: file
-        };
-      });
+      const newMedia = await Promise.all(
+        Array.from(files).map(async (file, index) => {
+          console.log("Processing file:", file.name, file.type);
+          const id = `upload-${Date.now()}-${index}`;
+          const type = file.type.startsWith('video') ? 'video' : 
+                      file.type.startsWith('audio') ? 'audio' : 'image';
+          
+          // Create object URLs for preview
+          const fileUrl = URL.createObjectURL(file);
+          
+          // For videos, generate duration (simplified for this example)
+          let duration = 30; // Default duration
+          if (type === 'video' || type === 'audio') {
+            try {
+              duration = await getMediaDuration(file, type);
+            } catch (err) {
+              console.error("Error getting duration:", err);
+            }
+          }
+          
+          return {
+            id,
+            type,
+            name: file.name,
+            duration,
+            src: fileUrl,
+            thumbnail: type === 'video' ? fileUrl : null,
+            file // Store the original file for processing
+          };
+        })
+      );
       
       console.log("Adding new media items:", newMedia.length);
       setMediaLibrary(prev => [...prev, ...newMedia]);
     } catch (error) {
       console.error("Error processing uploaded files:", error);
     }
+  };
+  
+  // Helper function to get media duration
+  const getMediaDuration = (file, type) => {
+    return new Promise((resolve, reject) => {
+      const element = type === 'video' ? document.createElement('video') : document.createElement('audio');
+      element.preload = 'metadata';
+      
+      element.onloadedmetadata = () => {
+        URL.revokeObjectURL(element.src);
+        resolve(element.duration);
+      };
+      
+      element.onerror = () => {
+        URL.revokeObjectURL(element.src);
+        reject(new Error("Error loading media metadata"));
+      };
+      
+      element.src = URL.createObjectURL(file);
+    });
   };
 
   return (
