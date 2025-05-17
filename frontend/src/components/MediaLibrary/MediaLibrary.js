@@ -39,7 +39,17 @@ const MediaLibrary = ({ media, onAddToTimeline, onFileUpload }) => {
     const files = Array.from(e.target.files);
     if (files.length > 0) {
       setUploading(true);
-      console.log("Files selected manually:", files);
+      console.log("Files selected manually:", files.length, "files");
+      
+      // Check if we have large video files (>10MB)
+      const hasLargeFiles = files.some(file => 
+        file.type.startsWith('video/') && file.size > 10 * 1024 * 1024
+      );
+
+      if (hasLargeFiles) {
+        console.log("Large video files detected, processing may take a while");
+      }
+      
       try {
         await onFileUpload(files);
       } catch (error) {
