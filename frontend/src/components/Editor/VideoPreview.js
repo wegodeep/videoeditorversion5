@@ -70,10 +70,15 @@ const VideoPreview = ({ videoRef, isPlaying, currentTime, duration, tracks, onTi
   // If there's a video clip, render it in the player
   const renderPlayer = () => {
     if (activeVideo) {
+      // Check if we have the original file (for uploaded videos)
+      const videoSource = activeVideo.file ? 
+        URL.createObjectURL(activeVideo.file) : // Create a fresh URL from the file
+        activeVideo.src; // Use the existing src for sample videos or already processed videos
+      
       return (
         <ReactPlayer
           ref={videoRef}
-          url={activeVideo.src}
+          url={videoSource}
           playing={isPlaying}
           controls={false}
           width="100%"
