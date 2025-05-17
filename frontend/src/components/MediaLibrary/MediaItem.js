@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion } from 'framer-motion';
 
 const MediaItem = ({ item, onAddToTimeline }) => {
@@ -6,6 +6,25 @@ const MediaItem = ({ item, onAddToTimeline }) => {
   const [thumbnailError, setThumbnailError] = useState(false);
   const [thumbnailLoaded, setThumbnailLoaded] = useState(false);
   const videoRef = useRef(null);
+  
+  // Create a fresh blob URL for the video if we have the original file
+  // This ensures we don't run into issues with expired blob URLs
+  const videoSrc = useMemo(() => {
+    if (item.file && item.type === 'video') {
+      return URL.createObjectURL(item.file);
+    }
+    return item.src;
+  }, [item.file, item.src, item.type]);
+  
+  // Clean up the blob URL when component unmounts
+  useEffect(() => {
+    return () => {
+      // Only revoke URLs we created in this component
+      if (item.file && videoSrc) {
+        URL.revokeObjectURL(videoSrc);
+      }
+    };
+  }, [item.file, videoSrc]);
   
   // Format duration as MM:SS
   const formatDuration = (seconds) => {
@@ -43,7 +62,7 @@ const MediaItem = ({ item, onAddToTimeline }) => {
   
   // Render appropriate thumbnail based on media type
   const renderThumbnail = () => {
-    if (item.type === 'video' && item.src && !thumbnailError) {
+    if (item.type === 'video' && videoSrc && !thumbnailError) {
       return (
         <div className="relative">
           <div className="media-thumbnail object-cover w-full h-16 flex items-center justify-center bg-gray-900">
@@ -55,7 +74,7 @@ const MediaItem = ({ item, onAddToTimeline }) => {
             
             <video 
               ref={videoRef}
-              src={item.src} 
+              src={videoSrc} 
               className="max-h-full max-w-full object-contain"
               muted
               playsInline
@@ -82,7 +101,7 @@ const MediaItem = ({ item, onAddToTimeline }) => {
           </div>
         </div>
       );
-    } else if (thumbnailError || (item.type === 'video' && !item.src)) {
+    } else if (thumbnailError || (item.type === 'video' && !videoSrc)) {
       // Fallback for video with errors
       return (
         <div className="bg-editor-clip-video h-16 flex items-center justify-center">
@@ -129,7 +148,7 @@ const MediaItem = ({ item, onAddToTimeline }) => {
         {renderThumbnail()}
         
         {/* Play overlay for video preview */}
-        {item.type === 'video' && !thumbnailError && (
+        {item.type === 'video' && !thumbnailError && videoRef.current && (
           <motion.div 
             className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity"
             whileHover={{ opacity: 1 }}
@@ -140,8 +159,7 @@ const MediaItem = ({ item, onAddToTimeline }) => {
               whileTap={{ scale: 0.9 }}
               onClick={(e) => {
                 e.stopPropagation();
-                // Preview video - this would be implemented with a modal
-                console.log("Preview video:", item);
+                // Preview video
                 if (videoRef.current) {
                   if (videoRef.current.paused) {
                     videoRef.current.play().catch(err => console.error("Error playing video:", err));
@@ -165,7 +183,7 @@ const MediaItem = ({ item, onAddToTimeline }) => {
           <div className="overflow-hidden">
             <h4 className="text-sm font-medium truncate max-w-[140px]">{item.name}</h4>
             <p className="text-xs text-editor-text-muted mt-0.5 capitalize">
-              {item.type} {item.file ? `(${(item.file.size / (1024 * 1024)).toFixed(1)} MB)` : ''}
+              {item.type} {item.fileSize ? `(${(item.fileSize / (1024 * 1024)).toFixed(1)} MB)` : ''}
             </p>
           </div>
           
