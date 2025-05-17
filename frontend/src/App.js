@@ -360,23 +360,23 @@ const VideoEditor = () => {
                      file.type.startsWith('audio') ? 'audio' : 'image';
           
           try {
-            // Create a new Blob to ensure proper handling
-            const fileBlob = new Blob([await file.arrayBuffer()], { type: file.type });
-            const fileUrl = URL.createObjectURL(fileBlob);
+            // Store the file directly without creating a Blob
+            // This avoids the issue with blob URLs becoming invalid
+            const fileUrl = URL.createObjectURL(file);
             
             // Get file metadata
             let duration = 30; // Default duration
             if (type === 'video' || type === 'audio') {
               try {
                 console.log(`Getting duration for ${file.name}...`);
-                duration = await getMediaDuration(fileBlob, type);
+                duration = await getMediaDuration(file, type);
                 console.log(`Duration for ${file.name}: ${duration} seconds`);
               } catch (err) {
                 console.error(`Error getting duration for ${file.name}:`, err);
               }
             }
             
-            // Create the media item
+            // Create the media item - store the actual file instead of just metadata
             const mediaItem = {
               id,
               type,
@@ -386,7 +386,9 @@ const VideoEditor = () => {
               thumbnail: type === 'video' ? fileUrl : null,
               fileType: file.type,
               fileSize: file.size,
-              lastModified: file.lastModified
+              lastModified: file.lastModified,
+              // Store the actual file to prevent garbage collection
+              file: file
             };
             
             // Add to media library
@@ -407,7 +409,7 @@ const VideoEditor = () => {
   };
   
   // Helper function to get media duration
-  const getMediaDuration = (fileOrBlob, type) => {
+  const getMediaDuration = (file, type) => {
     return new Promise((resolve, reject) => {
       // Create the appropriate element based on media type
       const element = type === 'video' ? document.createElement('video') : document.createElement('audio');
@@ -416,7 +418,6 @@ const VideoEditor = () => {
       element.preload = 'metadata';
       element.muted = true; // Important for video autoplay in some browsers
       element.playsInline = true;
-      element.crossOrigin = "anonymous";
       
       // Set up event handlers
       element.onloadedmetadata = () => {
@@ -427,8 +428,8 @@ const VideoEditor = () => {
         }
         
         const duration = element.duration;
-        URL.revokeObjectURL(element.src);
         resolve(duration);
+        // Don't revoke the URL here - we need it for playback
       };
       
       element.ondurationchange = () => {
@@ -438,21 +439,17 @@ const VideoEditor = () => {
         }
         
         const duration = element.duration;
-        URL.revokeObjectURL(element.src);
         resolve(duration);
+        // Don't revoke the URL here - we need it for playback
       };
       
       element.onerror = () => {
-        URL.revokeObjectURL(element.src);
         reject(new Error(`Error loading media metadata: ${element.error?.message || 'Unknown error'}`));
       };
       
-      // Load the file
-      if (fileOrBlob instanceof Blob) {
-        element.src = URL.createObjectURL(fileOrBlob);
-      } else {
-        element.src = URL.createObjectURL(fileOrBlob);
-      }
+      // Create a new URL for this operation only
+      const objectUrl = URL.createObjectURL(file);
+      element.src = objectUrl;
       
       // Some browsers need to actually start playing to get duration
       const playPromise = element.play();
@@ -471,7 +468,7 @@ const VideoEditor = () => {
       // Set a timeout in case metadata loading takes too long
       setTimeout(() => {
         if (!element.duration || element.duration === Infinity) {
-          URL.revokeObjectURL(element.src);
+          URL.revokeObjectURL(objectUrl);
           resolve(30); // Default duration if we can't get it
         }
       }, 5000);
