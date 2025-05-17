@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import ReactPlayer from 'react-player';
 import { motion } from 'framer-motion';
 
@@ -6,6 +6,7 @@ const VideoPreview = ({ videoRef, isPlaying, currentTime, duration, tracks, onTi
   const [activeVideo, setActiveVideo] = useState(null);
   const [isReady, setIsReady] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(0);
+  const [playbackError, setPlaybackError] = useState(false);
 
   // Find the video clip at the current time position
   useEffect(() => {
@@ -49,6 +50,14 @@ const VideoPreview = ({ videoRef, isPlaying, currentTime, duration, tracks, onTi
   const handleReady = () => {
     setIsReady(true);
     setLoadingProgress(1);
+    setPlaybackError(false);
+  };
+  
+  // Handle playback errors
+  const handleError = (e) => {
+    console.error("Video playback error:", e);
+    setPlaybackError(true);
+    setLoadingProgress(0);
   };
 
   // Seek to the specific time
@@ -71,12 +80,25 @@ const VideoPreview = ({ videoRef, isPlaying, currentTime, duration, tracks, onTi
           height="100%"
           onProgress={handleProgress}
           onReady={handleReady}
+          onError={handleError}
           progressInterval={100}
+          playsinline
+          pip={false}
+          stopOnUnmount={true}
           config={{
             file: {
+              forceVideo: true,
               attributes: {
-                className: 'video-player'
-              }
+                crossOrigin: "anonymous",
+                controlsList: "nodownload",
+                className: 'video-player',
+                disablePictureInPicture: true,
+                disableRemotePlayback: true
+              },
+              // Include more file format support
+              forceDASH: false,
+              forceHLS: false,
+              forceVideo: true
             }
           }}
         />
@@ -90,9 +112,32 @@ const VideoPreview = ({ videoRef, isPlaying, currentTime, duration, tracks, onTi
       {/* Video player container */}
       <div className="relative w-full h-full flex items-center justify-center">
         {/* Loading indicator */}
-        {loadingProgress < 1 && activeVideo && (
+        {loadingProgress < 1 && activeVideo && !playbackError && (
           <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 z-10">
             <div className="loading-spinner"></div>
+          </div>
+        )}
+        
+        {/* Error indicator */}
+        {playbackError && activeVideo && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 z-10 text-white">
+            <div className="text-center">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-12 h-12 mx-auto mb-2 text-red-500">
+                <path fillRule="evenodd" d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
+              </svg>
+              <p>Error playing video</p>
+              <button 
+                className="mt-2 text-sm bg-editor-primary px-3 py-1 rounded"
+                onClick={() => {
+                  setPlaybackError(false);
+                  if (videoRef.current) {
+                    videoRef.current.seekTo(currentTime, 'seconds');
+                  }
+                }}
+              >
+                Try Again
+              </button>
+            </div>
           </div>
         )}
         
