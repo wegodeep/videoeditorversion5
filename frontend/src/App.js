@@ -77,8 +77,26 @@ const VideoEditor = () => {
   const [isExporting, setIsExporting] = useState(false);
   // State for media library - initialize from localStorage if available
   const [mediaLibrary, setMediaLibrary] = useState(() => {
-    const savedMedia = localStorage.getItem('videoEditor_mediaLibrary');
-    return savedMedia ? JSON.parse(savedMedia) : sampleMedia;
+    try {
+      const savedMedia = localStorage.getItem('videoEditor_mediaLibrary');
+      if (savedMedia) {
+        const parsedMedia = JSON.parse(savedMedia);
+        console.log('Loaded media library from localStorage:', parsedMedia.length, 'items');
+        
+        // Filter out any items that would have ObjectURLs but don't anymore
+        // (these would be uploaded videos from previous sessions)
+        const validMedia = parsedMedia.filter(item => {
+          // Keep only sample media items with src or items without src (they'll need re-upload)
+          return (item.src && item.id.startsWith('sample-')) || !item.src;
+        });
+        
+        return validMedia;
+      }
+      return sampleMedia;
+    } catch (error) {
+      console.error('Error loading media library from localStorage:', error);
+      return sampleMedia;
+    }
   });
   const videoRef = useRef(null);
   const timelineRef = useRef(null);
